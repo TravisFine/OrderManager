@@ -253,11 +253,22 @@
   }
 
   async function api(path, options = {}) {
-    const res = await fetch(WORKER_URL + path, {
-      ...options,
-      headers: { "Content-Type": "application/json", "x-board-key": BOARD_KEY, ...(options.headers || {}) },
-    });
-    if (!res.ok) throw new Error("Request failed: " + res.status);
+    let res;
+    try {
+      res = await fetch(WORKER_URL + path, {
+        ...options,
+        headers: { "Content-Type": "application/json", "x-board-key": BOARD_KEY, ...(options.headers || {}) },
+      });
+    } catch (networkErr) {
+      throw new Error("Network/CORS error reaching Worker: " + networkErr.message);
+    }
+    if (!res.ok) {
+      let detail = "";
+      try {
+        detail = await res.text();
+      } catch (e) {}
+      throw new Error("Worker responded " + res.status + ": " + detail);
+    }
     return res.json();
   }
 
@@ -316,7 +327,7 @@
       const orders = await api("/orders");
       renderActive(orders);
     } catch (e) {
-      document.getElementById("status").textContent = "offline, retrying…";
+      document.getElementById("status").textContent = "offline: " + e.message;
     }
   }
 
@@ -374,7 +385,7 @@
       document.getElementById("f-notes").value = "";
       loadActive();
     } catch (e) {
-      alert("Could not submit that order. Try again.");
+      alert("Could not submit that order: " + e.message);
     } finally {
       submitBtn.disabled = false;
     }
