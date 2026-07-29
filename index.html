@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Order Rail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;700&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #EFEAE0;
+    --paper-dark: #E4DDCD;
+    --card: #FBF9F4;
+    --ink: #22303A;
+    --ink-soft: #5B6870;
+    --rail: #C9BFA9;
+    --pending: #B23A2E;
+    --done: #3C6E52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+  }
+  .display { font-family: 'Zilla Slab', serif; }
+  .num { font-family: 'IBM Plex Mono', monospace; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding: 20px 24px;
+  }
+  header .inner {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  h1 { font-size: 28px; font-weight: 700; margin: 0; letter-spacing: 0.2px; }
+  header p { margin: 2px 0 0; font-size: 13px; color: var(--ink-soft); }
+  #status { font-size: 13px; color: var(--ink-soft); }
+
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: minmax(0,320px) 1fr;
+    gap: 28px;
+  }
+  @media (max-width: 720px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  form#new-order {
+    background: var(--card);
+    border: 1px solid var(--rail);
+    border-radius: 6px;
+    padding: 18px;
+    height: fit-content;
+  }
+  form#new-order .title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+  label { display: block; margin-bottom: 10px; }
+  label .lbl {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--ink-soft); margin-bottom: 4px;
+  }
+  input, textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    background: var(--card);
+    border: 1px solid var(--rail);
+    color: var(--ink);
+    outline: none;
+  }
+  input:focus, textarea:focus { border-color: var(--ink); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button[type="submit"] {
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 0;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 15px;
+    font-family: 'Zilla Slab', serif;
+    cursor: pointer;
+  }
+
+  .empty {
+    color: var(--ink-soft);
+    font-size: 14px;
+    padding: 40px 8px;
+    text-align: center;
+    border: 1px dashed var(--rail);
+    border-radius: 6px;
+  }
+
+  .ticket {
+    background: var(--card);
+    border: 1px solid var(--rail);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    padding: 14px 16px 14px 18px;
+    position: relative;
+    margin-bottom: 14px;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .ticket::before {
+    content: "";
+    position: absolute;
+    top: -1px; left: 0; right: 0; height: 6px;
+    background-image: repeating-linear-gradient(90deg, var(--paper) 0 8px, transparent 8px 9px),
+                       linear-gradient(var(--rail), var(--rail));
+    background-size: 100% 1px, 100% 1px;
+    background-position: bottom, top;
+    background-repeat: no-repeat;
+    border-radius: 4px 4px 0 0;
+  }
+  .ticket.removing { opacity: 0; transform: scale(0.96); }
+  .ticket-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .ticket-number { color: var(--pending); font-size: 13px; font-weight: 600; }
+  .ticket-customer { font-weight: 700; font-size: 16px; }
+  .ticket-qty { font-size: 12px; color: var(--ink-soft); }
+  .ticket-item { font-size: 14px; margin-top: 4px; }
+  .ticket-notes { font-size: 13px; margin-top: 3px; color: var(--ink-soft); font-style: italic; }
+  .ticket-meta { font-size: 12px; margin-top: 6px; color: var(--ink-soft); }
+  .finish-btn {
+    flex-shrink: 0;
+    padding: 7px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1.5px solid var(--done);
+    color: var(--done);
+    background: transparent;
+    font-weight: 600;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .finish-btn:hover { background: var(--done); color: var(--card); }
+
+  #toggle-completed {
+    margin-top: 8px;
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+  }
+  #completed-list { margin-top: 12px; display: none; flex-direction: column; gap: 6px; }
+  #completed-list.open { display: flex; }
+  .completed-row {
+    font-size: 13px;
+    color: var(--ink-soft);
+    border-bottom: 1px solid var(--paper-dark);
+    padding: 6px 0;
+  }
+
+  #setup-banner {
+    background: #FDECEA;
+    border-bottom: 2px solid var(--pending);
+    color: var(--pending);
+    font-size: 13px;
+    padding: 10px 24px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="setup-banner">
+  Order Rail isn't configured yet — edit <span class="num">WORKER_URL</span> and <span class="num">BOARD_KEY</span> at the top of this page's script, then redeploy.
+</div>
+
+<header>
+  <div class="inner">
+    <div>
+      <h1 class="display">Order Rail</h1>
+      <p>Shared dispatch board — orders stored as GitHub Issues</p>
+    </div>
+    <div id="status" class="num">loading…</div>
+  </div>
+</header>
+
+<main>
+  <form id="new-order">
+    <div class="title display">New order</div>
+    <label>
+      <div class="lbl">Customer</div>
+      <input id="f-customer" placeholder="Acme Co." required />
+    </label>
+    <label>
+      <div class="lbl">Item / order details</div>
+      <textarea id="f-item" rows="3" placeholder="What are they ordering?" required></textarea>
+    </label>
+    <div class="row2">
+      <label>
+        <div class="lbl">Qty</div>
+        <input id="f-qty" placeholder="1" />
+      </label>
+      <label>
+        <div class="lbl">Your name</div>
+        <input id="f-by" placeholder="Who's placing this" />
+      </label>
+    </div>
+    <label>
+      <div class="lbl">Notes (optional)</div>
+      <input id="f-notes" placeholder="Rush, special instructions…" />
+    </label>
+    <button type="submit">Send to rail</button>
+  </form>
+
+  <section>
+    <div id="active-list"></div>
+    <button id="toggle-completed">Show recently finished</button>
+    <div id="completed-list"></div>
+  </section>
+</main>
+
+<script>
+  // ---- CONFIGURE THESE TWO VALUES AFTER DEPLOYING YOUR WORKER ----
+  const WORKER_URL = "https://YOUR-WORKER-SUBDOMAIN.workers.dev";
+  const BOARD_KEY = "change-this-shared-passphrase";
+  // -----------------------------------------------------------------
+
+  const POLL_MS = 5000;
+  let completedLoaded = false;
+  let completedOpen = false;
+
+  if (WORKER_URL.includes("YOUR-WORKER-SUBDOMAIN")) {
+    document.getElementById("setup-banner").style.display = "block";
+  }
+
+  function timeAgo(iso) {
+    const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (s < 60) return "just now";
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + "m ago";
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + "h ago";
+    return Math.floor(h / 24) + "d ago";
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(WORKER_URL + path, {
+      ...options,
+      headers: { "Content-Type": "application/json", "x-board-key": BOARD_KEY, ...(options.headers || {}) },
+    });
+    if (!res.ok) throw new Error("Request failed: " + res.status);
+    return res.json();
+  }
+
+  function renderActive(orders) {
+    const list = document.getElementById("active-list");
+    document.getElementById("status").textContent = orders.length + " open";
+    if (orders.length === 0) {
+      list.innerHTML = '<div class="empty">No open orders. New ones will appear here for the whole team as soon as they\'re submitted.</div>';
+      return;
+    }
+    list.innerHTML = orders
+      .map(
+        (t) => `
+      <div class="ticket" data-number="${t.number}">
+        <div class="ticket-top">
+          <div style="min-width:0">
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+              <span class="ticket-number num">No. ${String(t.number).padStart(4, "0")}</span>
+              <span class="ticket-customer display">${escapeHtml(t.customer)}</span>
+              <span class="ticket-qty num">× ${escapeHtml(t.qty)}</span>
+            </div>
+            <div class="ticket-item">${escapeHtml(t.item)}</div>
+            ${t.notes ? `<div class="ticket-notes">${escapeHtml(t.notes)}</div>` : ""}
+            <div class="ticket-meta">${escapeHtml(t.by)} · ${timeAgo(t.createdAt)}</div>
+          </div>
+          <button class="finish-btn" onclick="finishOrder(${t.number}, this)">Mark finished</button>
+        </div>
+      </div>`
+      )
+      .join("");
+  }
+
+  function renderCompleted(orders) {
+    const list = document.getElementById("completed-list");
+    if (orders.length === 0) {
+      list.innerHTML = '<div class="completed-row">Nothing finished yet.</div>';
+      return;
+    }
+    list.innerHTML = orders
+      .map(
+        (t) => `
+      <div class="completed-row">
+        <span class="num">No. ${String(t.number).padStart(4, "0")}</span> — ${escapeHtml(t.customer)}: ${escapeHtml(t.item)}
+        <span style="opacity:0.8">· finished ${timeAgo(t.closedAt)}</span>
+      </div>`
+      )
+      .join("");
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  async function loadActive() {
+    try {
+      const orders = await api("/orders");
+      renderActive(orders);
+    } catch (e) {
+      document.getElementById("status").textContent = "offline, retrying…";
+    }
+  }
+
+  async function finishOrder(number, btn) {
+    const ticket = btn.closest(".ticket");
+    ticket.classList.add("removing");
+    try {
+      await api("/orders/close", { method: "POST", body: JSON.stringify({ number }) });
+      setTimeout(loadActive, 200);
+      if (completedOpen) loadCompleted();
+    } catch (e) {
+      ticket.classList.remove("removing");
+      alert("Could not mark that order finished. Try again.");
+    }
+  }
+
+  async function loadCompleted() {
+    try {
+      const orders = await api("/orders/completed");
+      renderCompleted(orders);
+    } catch (e) {
+      /* silent */
+    }
+  }
+
+  document.getElementById("toggle-completed").addEventListener("click", () => {
+    completedOpen = !completedOpen;
+    const list = document.getElementById("completed-list");
+    const btn = document.getElementById("toggle-completed");
+    list.classList.toggle("open", completedOpen);
+    btn.textContent = (completedOpen ? "Hide" : "Show") + " recently finished";
+    if (completedOpen && !completedLoaded) {
+      completedLoaded = true;
+      loadCompleted();
+    }
+  });
+
+  document.getElementById("new-order").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const payload = {
+      customer: document.getElementById("f-customer").value.trim(),
+      item: document.getElementById("f-item").value.trim(),
+      qty: document.getElementById("f-qty").value.trim() || "1",
+      by: document.getElementById("f-by").value.trim() || "Unknown",
+      notes: document.getElementById("f-notes").value.trim(),
+    };
+    if (!payload.customer || !payload.item) return;
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+      await api("/orders", { method: "POST", body: JSON.stringify(payload) });
+      document.getElementById("f-customer").value = "";
+      document.getElementById("f-item").value = "";
+      document.getElementById("f-qty").value = "";
+      document.getElementById("f-notes").value = "";
+      loadActive();
+    } catch (e) {
+      alert("Could not submit that order. Try again.");
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  loadActive();
+  setInterval(loadActive, POLL_MS);
+</script>
+
+</body>
+</html>
