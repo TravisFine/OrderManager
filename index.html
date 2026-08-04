@@ -49,6 +49,32 @@
   header p { margin: 2px 0 0; font-size: 12px; color: #B7C4D4; text-transform: uppercase; letter-spacing: 0.8px; }
   #status { font-size: 13px; color: #B7C4D4; }
 
+  nav.tabs {
+    background: var(--navy-deep);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  nav.tabs .inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 4px;
+    padding: 0 24px;
+  }
+  nav.tabs a {
+    display: inline-block;
+    padding: 10px 16px;
+    font-family: 'Oswald', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #B7C4D4;
+    text-decoration: none;
+    border-bottom: 3px solid transparent;
+  }
+  nav.tabs a.active { color: var(--white); border-bottom-color: var(--red); }
+  nav.tabs a:hover { color: var(--white); }
+
   main {
     max-width: 980px;
     margin: 0 auto;
@@ -158,28 +184,6 @@
   .btn-finish { border: 1.5px solid var(--navy); color: var(--navy); }
   .btn-finish:hover { background: var(--navy); color: #fff; }
 
-  #toggle-completed {
-    margin-top: 8px;
-    background: none;
-    border: none;
-    color: var(--navy);
-    font-size: 13px;
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 0;
-    font-weight: 600;
-  }
-  #completed-list { margin-top: 12px; display: none; flex-direction: column; gap: 6px; }
-  #completed-list.open { display: flex; }
-  .completed-row {
-    font-size: 13px;
-    color: var(--ink-soft);
-    border-bottom: 1px solid var(--line);
-    padding: 8px 0;
-    background: var(--card);
-  }
-  .completed-row .line2 { display: block; margin-top: 2px; font-size: 12px; }
-
   .export-note {
     margin-top: 20px;
     font-size: 12px;
@@ -217,6 +221,13 @@
   </div>
 </header>
 
+<nav class="tabs">
+  <div class="inner">
+    <a href="index.html" class="active">Active Orders</a>
+    <a href="completed.html">Completed Orders</a>
+  </div>
+</nav>
+
 <main>
   <form id="new-order">
     <div class="title display">New order</div>
@@ -241,10 +252,8 @@
 
   <section>
     <div id="active-list"></div>
-    <button id="toggle-completed">Show recently finished</button>
-    <div id="completed-list"></div>
     <div class="export-note">
-      Finished orders are exported to CSV and emailed nightly, then cleared from this list automatically.
+      Looking for a finished order? See the <a href="completed.html">Completed Orders</a> page. That list is exported to CSV and emailed nightly, then cleared automatically.
     </div>
   </section>
 </main>
@@ -256,9 +265,6 @@
   // -----------------------------------------------------------------
 
   const POLL_MS = 5000;
-  let completedLoaded = false;
-  let completedOpen = false;
-
   if (WORKER_URL.includes("YOUR-WORKER-SUBDOMAIN")) {
     document.getElementById("setup-banner").style.display = "block";
   }
@@ -327,24 +333,6 @@
       .join("");
   }
 
-  function renderCompleted(orders) {
-    const list = document.getElementById("completed-list");
-    if (orders.length === 0) {
-      list.innerHTML = '<div class="completed-row">Nothing finished yet.</div>';
-      return;
-    }
-    list.innerHTML = orders
-      .map(
-        (t) => `
-      <div class="completed-row">
-        <span class="num">No. ${String(t.number).padStart(4, "0")}</span> — ${escapeHtml(t.customer)}: ${escapeHtml(t.item)}
-        <span style="opacity:0.8">· finished ${timeAgo(t.closedAt)}</span>
-        <span class="line2">Completed by ${escapeHtml(t.completedBy || "—")} · Order reference ${escapeHtml(t.orderReference || "—")}</span>
-      </div>`
-      )
-      .join("");
-  }
-
   function escapeHtml(str) {
     return String(str || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -384,33 +372,11 @@
     try {
       await api("/orders/close", { method: "POST", body: JSON.stringify({ number, completedBy, orderReference }) });
       setTimeout(loadActive, 200);
-      if (completedOpen) loadCompleted();
     } catch (e) {
       ticket.classList.remove("removing");
       alert("Could not mark that order finished: " + e.message);
     }
   }
-
-  async function loadCompleted() {
-    try {
-      const orders = await api("/orders/completed");
-      renderCompleted(orders);
-    } catch (e) {
-      /* silent */
-    }
-  }
-
-  document.getElementById("toggle-completed").addEventListener("click", () => {
-    completedOpen = !completedOpen;
-    const list = document.getElementById("completed-list");
-    const btn = document.getElementById("toggle-completed");
-    list.classList.toggle("open", completedOpen);
-    btn.textContent = (completedOpen ? "Hide" : "Show") + " recently finished";
-    if (completedOpen && !completedLoaded) {
-      completedLoaded = true;
-      loadCompleted();
-    }
-  });
 
   document.getElementById("new-order").addEventListener("submit", async (e) => {
     e.preventDefault();
