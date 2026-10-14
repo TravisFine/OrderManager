@@ -8,7 +8,20 @@
   let registration,subscription,busy=true;
   function show(message){status.textContent=message;}
   function update(){toggle.textContent=subscription?'Turn off notifications':'Enable notifications';test.hidden=!subscription;toggle.disabled=busy;test.disabled=busy;}
-  async function request(path,data){const res=await fetch(WORKER_URL+path,{method:data?'POST':'GET',headers:{'Content-Type':'application/json','x-board-key':BOARD_KEY},...(data?{body:JSON.stringify(data)}:{})});const result=await res.json();if(!res.ok)throw new Error(result.error||`Request failed (${res.status})`);return result;}
+  async function request(path,data){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+    try {
+      const res=await fetch(WORKER_URL+path,{signal:controller.signal,method:data?'POST':'GET',headers:{'Content-Type':'application/json','x-board-key':BOARD_KEY},...(data?{body:JSON.stringify(data)}:{})});
+      const result=await res.json().catch(()=>({error:'The notification server returned an unreadable response.'}));
+      if(!res.ok) throw new Error([result.error,result.detail].filter(Boolean).join(': ')||`Request failed (${res.status})`);
+      return result;
+    } catch(e) {if(e.name==='AbortError')throw new Error('The notification server did not respond. Please try again.');throw e;}
+    finally {clearTimeout(timer);}
+  }
+  function withTimeout(promise,message,milliseconds=20000) {
+    let timer;
+    return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(message)),milliseconds);})]).finally(()=>clearTimeout(timer));
+  }
   function decode(s){return Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(s.length/4)*4,'=')),c=>c.charCodeAt(0));}
   function offerNotifications(mode='enable') {
     if(subscription) return;
@@ -35,7 +48,7 @@
     enable.addEventListener('click',()=>{
       remember();dialog.close();
       // Keep the browser permission request inside this user-initiated click.
-      toggle.click();
+      enableNotifications();
     });
     document.head.append(style);document.body.append(dialog);dialog.showModal();
   }
@@ -56,29 +69,42 @@
     busy=false;update();
     if(!subscription) offerNotifications(Notification.permission==='denied'?'blocked':'enable');
   });
-  setup.catch(e=>show(e.message));
-  toggle.addEventListener('click',async()=>{
+  setup.catch(e=>{busy=false;update();show('Notification setup: '+e.message);});
+  async function enableNotifications(){
     if(busy)return;
-    // Ask inside the click handler, before any network wait (required by Safari).
-    const permissionPromise=!subscription?Notification.requestPermission():Promise.resolve('granted');
     busy=true;update();
-    try{
-      const permission=await permissionPromise;
-      await setup;
+    try {
+      if(!subscription) {
+        show('Waiting for Chrome notification permission…');
+        // Call directly from either real user click, inside the error handler.
+        const permission=Notification.permission==='granted'?'granted':
+          await withTimeout(Notification.requestPermission(),'Chrome has not answered the permission request. Check the site controls beside the address for notification permissions.',30000);
+        if(permission!=='granted')throw new Error(permission==='denied'
+          ?'Chrome is blocking notifications. Open the site controls beside the address, allow Notifications, then try again.'
+          :'Chrome did not grant permission. Check the site controls beside the address, then try again.');
+      }
+      show('Preparing notifications…');
+      await withTimeout(setup,'Notification setup timed out. Reload the page and try again.');
       if(subscription){
+        show('Turning off notifications…');
         await request('/push/unsubscribe',{endpoint:subscription.endpoint});
         const removed=await subscription.unsubscribe();
         if(!removed)throw new Error('Could not remove the browser subscription. Try again.');
         subscription=null;show('Notifications are off on this device.');
       }else{
-        if(permission!=='granted')throw new Error('Notifications were not allowed. You can change this in the site’s browser settings.');
+        show('Connecting to the notification server…');
         const {publicKey}=await request('/push/config');
-        subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:decode(publicKey)});
+        if(!publicKey)throw new Error('The Worker did not provide a notification key. Confirm that the updated worker.js is deployed.');
+        show('Registering this device with Chrome…');
+        subscription=await withTimeout(registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:decode(publicKey)}),'Chrome could not finish registering this device. Reload and try again.',30000);
+        show('Saving this device for order alerts…');
         try{await request('/push/subscribe',{subscription:subscription.toJSON()});}catch(e){await subscription.unsubscribe();subscription=null;throw e;}
         show('Enabled. Use “Send test” to check delivery on this device.');
       }
-    }catch(e){show(e.message);}finally{busy=false;update();}
-  });
+    }catch(e){show(e.message||String(e));}
+    finally{busy=false;update();}
+  }
+  toggle.addEventListener('click',enableNotifications);
   test.addEventListener('click',async()=>{
     busy=true;update();
     try{await request('/push/test',{endpoint:subscription.endpoint});show('Test accepted by the push service. Check your notifications.');}catch(e){show(e.message);}finally{busy=false;update();}
