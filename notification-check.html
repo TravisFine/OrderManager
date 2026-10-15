@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Order Manager notification check</title>
+<style>body{font:17px system-ui;margin:24px auto;padding:0 20px;max-width:600px;background:#f4f6f8;color:#16232f}button,a{display:inline-block;margin:12px 0;padding:14px;font:inherit}button{background:#0b2545;color:white;border:0;border-radius:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:white;padding:16px;border:1px solid #ccd3dd;border-radius:8px}</style>
+<h1>Notification check</h1><p>Tap the button once. This checks Chrome's permission on the Order Manager domain. It does not change orders or subscribe you to order alerts.</p>
+<button id="check">Ask Chrome for permission</button><pre id="result"></pre>
+<a href="./">Back to orders</a>
+<script>
+const output=document.getElementById('result');
+function line(text){output.textContent+=text+'\n'}
+line('Check version: 1');
+line('Domain: '+location.origin);
+line('Secure page: '+isSecureContext);
+line('Top-level page: '+(window===window.top));
+line('Current permission: '+('Notification' in window?Notification.permission:'unsupported'));
+if(navigator.permissions)navigator.permissions.query({name:'notifications'}).then(p=>{line('Permissions API: '+p.state);p.onchange=()=>line('Permission changed: '+p.state)}).catch(e=>line('Permission query: '+e.message));
+document.getElementById('check').addEventListener('click',function(event){
+ if(!('Notification' in window)){line('Notifications unavailable.');return}
+ const before=Notification.permission;
+ const active=navigator.userActivation?navigator.userActivation.isActive:'unknown';
+ const started=Date.now();
+ try{
+  const pending=Notification.requestPermission();
+  line('Real click: '+event.isTrusted+'; user activation: '+active);
+  line('Permission before request: '+before);
+  line('Waiting for Chrome...');
+  pending.then(permission=>{
+   line('Chrome returned: '+permission+' ('+(Date.now()-started)+' ms)');
+   line('Current permission: '+Notification.permission);
+   if(permission==='granted')line('Permission works here. Return to orders and tap Enable notifications to finish setup.');
+  }).catch(e=>line(e.name+': '+e.message));
+ }catch(e){line(e.name+': '+e.message)}
+});
+</script></html>
