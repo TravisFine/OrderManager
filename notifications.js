@@ -13,7 +13,7 @@
     try {
       const res=await fetch(WORKER_URL+path,{signal:controller.signal,method:data?'POST':'GET',headers:{'Content-Type':'application/json','x-board-key':BOARD_KEY},...(data?{body:JSON.stringify(data)}:{})});
       const result=await res.json().catch(()=>({error:'The notification server returned an unreadable response.'}));
-      if(!res.ok) throw new Error([result.error,result.detail].filter(Boolean).join(': ')||`Request failed (${res.status})`);
+      if(!res.ok) throw new Error([result.error,result.detail,result.status ? `Push service returned HTTP ${result.status}` : null].filter(Boolean).join(': ')||`Request failed (${res.status})`);
       return result;
     } catch(e) {if(e.name==='AbortError')throw new Error('The notification server did not respond. Please try again.');throw e;}
     finally {clearTimeout(timer);}
